@@ -1,7 +1,4 @@
 var https = require('https');
-var opensslTools = require('openssl-cert-tools');
-var http = require('http');
-var fs = require('fs');
 var spawn = require('child_process').spawn;
 var host = '192.168.1.9'
 var port = 443;
@@ -176,57 +173,10 @@ async function getCertificateChain(host, port) {
     });
 }
 
-function getNextCrtURI(crt) {
-    if (crt == '' || !crt['infoAccess'])
-        return ''
-    return crt['infoAccess']['CA Issuers - URI'][0]
-}
-
-function handleCRTUriFetched(next_crt_uri) {
-    if (next_crt_uri == '') {
-        console.info('CERTIFICATES CHAIN IS DONE')
-    } else {
-        console.info(`Proceeding to the next cert in chain which is located in ${next_crt_uri}`)
-        return downloadFile(next_crt_uri).then((crt_content) => handleCRTUriFetched(getNextCrtURI(crt_content)))
-    }
-}
-
-function getFileNameFromURI(uri) {
-    var startIndex = uri.lastIndexOf('/') + 1
-    var name = uri.slice(startIndex)
-    return name
-}
-
 function fromBase64ToDERX509Certificate(cert) {
     var prefix = '-----BEGIN CERTIFICATE-----\n';
     var postfix = '-----END CERTIFICATE-----';
     return prefix + cert.match(/.{0,64}/g).join('\n') + postfix;
-}
-
-function downloadFile(file_uri) {
-    return new Promise((resolve, reject) => {
-        var file_name = getFileNameFromURI(file_uri)
-        const file = fs.createWriteStream(file_name);
-        var req = http.get(file_uri, function (res) {
-            res.pipe(file)
-            fs.readFile(file_name, (err, data) => {
-                var content = data.toString('base64')
-                var prefix = '-----BEGIN CERTIFICATE-----\n';
-                var postfix = '-----END CERTIFICATE-----';
-                var pemText = prefix + content.match(/.{0,64}/g).join('\n') + postfix;
-                opensslTools.getCertificateInfo(pemText, function (err, data) {
-                    if (err) {
-                        console.log(err)
-                    } else {
-                        //   console.log(data);
-                    }
-                });
-                console.log(` cert is ${pemText}`)
-            })
-            return resolve('')
-        });
-        req.end();
-    })
 }
 
 function connectToServer(options) {
@@ -235,25 +185,6 @@ function connectToServer(options) {
             console.log(element);
             console.log("============================ Next Certificate ============================");
         });
-        /* =>
-         * [
-         *   '-----BEGIN CERTIFICATE-----\n' +
-         *     'MIIGqzCCBZOgAwIBAgIQB0/pAsa31hmIThyhhU2ReDANBgkqhkiG9w0BAQsFADBN\n' +
-         *     '...' +
-         *     'WeNYP84Yjw6OFSHdi2W0VojRGhxm7PZCMqswN/XaBg==\n' +
-         *     '-----END CERTIFICATE-----',
-         *   '-----BEGIN CERTIFICATE-----\n' +
-         *     'MIIElDCCA3ygAwIBAgIQAf2j627KdciIQ4tyS8+8kTANBgkqhkiG9w0BAQsFADBh\n' +
-         *     '...' +
-         *     'j6tJLp07kzQoH3jOlOrHvdPJbRzeXDLz\n' +
-         *     '-----END CERTIFICATE-----',
-         *   '-----BEGIN CERTIFICATE-----\n' +
-         *     'MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh\n' +
-         *     '...' +
-         *     'CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=\n' +
-         *     '-----END CERTIFICATE-----'
-         * ]
-         */
     });
 
     // var req = https.request(options, function (res) {
@@ -263,14 +194,6 @@ function connectToServer(options) {
     //     return resolve(next_cert_URI)
     // });
     // req.end();
-}
-
-function getServerInfo(options) {
-    connectToServer(options).then((next_crt_uri) => {
-        handleCRTUriFetched(next_crt_uri)
-    }).catch((error) => {
-        console.error(`error ==> ${error}`)
-    })
 }
 
 connectToServer(options);
